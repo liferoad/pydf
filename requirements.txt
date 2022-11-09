@@ -1,0 +1,5 @@
+# beam
+apache-beam[gcp]
+
+# pydantic
+pydantic

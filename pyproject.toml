@@ -1,0 +1,33 @@
+[tool.black]
+line-length = 120
+target_version = ['py39']
+include = '\.pyi?$'
+exclude = '''
+
+(
+  /(
+      \.eggs         # exclude a few common directories in the
+    | \.git          # root of the project
+    | \.hg
+    | \.mypy_cache
+    | \.tox
+    | \.vscode
+    | \.idea
+    | \.ipynb_checkpoints
+    | \.dvc
+    | _build
+    | buck-out
+    | build
+    | dist
+    | venv
+    | api/.fun
+    | node_modules
+  )/
+  | version.py          # also separately exclude a file named foo.py in
+                        # the root of the project
+)
+'''
+
+# packages that are required for setup.py to run must be listed here
+[build-system]
+requires=["setuptools==49.3.2", "wheel==0.34.2", "numpy==1.17.5", "Cython==0.29.15"]
