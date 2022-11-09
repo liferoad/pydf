@@ -2,6 +2,7 @@
 apache-beam[gcp]
 
 # gcp client library
+google-api-python-client
 google-cloud-dataflow-client
 
 # pydantic
