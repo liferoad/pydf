@@ -6,6 +6,7 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from pydantic import FilePath
 
+# pydf libraries
 from df import models as dm
 
 
@@ -32,4 +33,10 @@ class Dataflow:
         pass
 
     def list_data_pipelines(self) -> List[dm.DataPipeline]:
-        pass
+        res = self._service.projects().locations().listPipelines(parent=self._parent).execute()
+        pipelines = []
+        for one_res in res["pipelines"]:
+            one_p = dm.DataPipeline(name=one_res["name"])
+            one_p._api_results = one_res
+            pipelines.append(one_p)
+        return pipelines

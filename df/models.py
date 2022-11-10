@@ -11,7 +11,9 @@ class Job(BaseModel):
 class DataPipeline(BaseModel):
     """Data Pipeline information"""
 
-    _api_results: str
+    name: str = Field(..., description="Data pipeline name")
+
+    _api_results: dict
 
     class Config:
         underscore_attrs_are_private = True
