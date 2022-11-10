@@ -20,7 +20,7 @@ exclude = '''
     | build
     | dist
     | venv
-    | api/.fun
+    | notebooks
     | node_modules
   )/
   | version.py          # also separately exclude a file named foo.py in
