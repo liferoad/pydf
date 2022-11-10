@@ -25,12 +25,21 @@ class Dataflow:
             service_account_file, scopes=["https://www.googleapis.com/auth/cloud-platform"]
         )
         self._dp_service = build("datapipelines", "v1", credentials=self._credentials, cache_discovery=False)
+        self._df_service = build("dataflow", "v1b3", credentials=self._credentials, cache_discovery=False)
         self.project_id = project_id
         self.location_id = location_id
         self._parent = f"projects/{project_id}/locations/{location_id}"
 
     def create_job(self) -> dm.Job:
-        pass
+        response = self._df_service.projects().locations().jobs().create(
+            project_id=self.project_id).execute()
+        return response
+
+    def list_jobs(self) -> dm.Job:
+        response = self._df_service.projects().locations().jobs().list(
+            project_id=self.project_id,
+            location=self.location_id).execute()
+        return response
 
     def list_data_pipelines(self) -> List[dm.DataPipeline]:
         res = self._dp_service.projects().locations().listPipelines(parent=self._parent).execute()
@@ -46,3 +55,4 @@ class Dataflow:
             one_p._df = self
             pipelines.append(one_p)
         return pipelines
+    
