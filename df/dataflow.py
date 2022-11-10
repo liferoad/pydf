@@ -31,14 +31,17 @@ class Dataflow:
         self._parent = f"projects/{project_id}/locations/{location_id}"
 
     def create_job(self) -> dm.Job:
-        response = self._df_service.projects().locations().jobs().create(
-            project_id=self.project_id).execute()
+        response = self._df_service.projects().locations().jobs().create(project_id=self.project_id).execute()
         return response
 
     def list_jobs(self) -> dm.Job:
-        response = self._df_service.projects().locations().jobs().list(
-            project_id=self.project_id,
-            location=self.location_id).execute()
+        response = (
+            self._df_service.projects()
+            .locations()
+            .jobs()
+            .list(project_id=self.project_id, location=self.location_id)
+            .execute()
+        )
         return response
 
     def list_data_pipelines(self) -> List[dm.DataPipeline]:
@@ -46,6 +49,7 @@ class Dataflow:
         pipelines = []
         for one_res in res["pipelines"]:
             one_p = dm.DataPipeline(
+                short_name=one_res["name"].split("/")[-1],
                 name=one_res["name"],
                 display_name=one_res.get("displayName", None),
                 type=one_res.get("type", None),
@@ -55,4 +59,25 @@ class Dataflow:
             one_p._df = self
             pipelines.append(one_p)
         return pipelines
-    
+
+    def create_data_pipeline(self, data_pipeline: dm.DataPipeline) -> dm.DataPipeline:
+        if not data_pipeline.name:
+            data_pipeline.name = f"{self._parent}/pipelines/{data_pipeline.short_name}"
+
+        res = (
+            self._dp_service.projects()
+            .locations()
+            .pipelines()
+            .create(parent=self._parent, body=dict(name=data_pipeline.name))
+            .execute()
+        )
+        one_dp = dm.DataPipeline(
+            short_name=data_pipeline.short_name,
+            name=res["name"],
+            display_name=res.get("displayName", None),
+            type=res.get("type", None),
+            state=res.get("state", None),
+        )
+        one_dp._api_results = res
+        one_dp._df = self
+        return one_dp

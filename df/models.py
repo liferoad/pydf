@@ -17,7 +17,8 @@ class Job(BaseModel):
 class DataPipeline(BaseModel, _DataPipelineMixin):
     """Data Pipeline information"""
 
-    name: str = Field(..., description="Data pipeline name")
+    short_name: str = Field(..., description="Data pipeline short name without project and location ids")
+    name: Optional[str] = Field(None, description="Data pipeline full name")
     display_name: Optional[str] = Field(None, description="Display name for a data pipeline")
     type: Optional[str] = Field(None, description="Data pipeline type")
     state: Optional[str] = Field(None, description="Data pipeline state")
