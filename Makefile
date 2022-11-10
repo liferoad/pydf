@@ -30,6 +30,7 @@ init: init-venv ## Init virtual environment for development
 	@./venv/bin/python3 -m pip install -r requirements.txt
 	@./venv/bin/python3 -m pip install -r requirements.dev.txt
 	@./venv/bin/python3 -m pre_commit install --install-hooks --overwrite
+	@./venv/bin/python3 -m pip install -e .
 	@echo "use 'source venv/bin/activate' to activate venv "
 
 clean-lite: ## Remove pycache files, pytest files, etc
