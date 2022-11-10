@@ -53,4 +53,4 @@ lint: ## Run linter on source code
 	@./venv/bin/python3 -m flake8 --config=.flake8 .
 
 test: lint ## Run tests
-	@PYTHONPATH="./:./df" ./venv/bin/pytest -s -vv --cov-config=.coveragerc --cov-report html:htmlcov_v1 --cov-fail-under=50 tests/
+	@./venv/bin/pytest -s -vv --cov-config=.coveragerc --cov-report html:htmlcov_v1 --cov-fail-under=50 tests/
