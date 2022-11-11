@@ -45,14 +45,30 @@ class Dataflow:
         one_job._df = self
         return one_job
 
-    def create_job_from_template(self, templatePath, inputPath, outputPath) -> dm.Job:
-        newBody = {
-            "gcsPath": templatePath,
-            "jobName": self.project_id,
-            "parameters": {"inputFile": inputPath, "output": outputPath},
+    def create_job_from_template(self, job_name: str, template_path: str, input_path: str, output_path: str) -> dm.Job:
+        """Create a job from a Classic template
+
+        Args:
+            job_name(str): a Dataflow job name
+            templatePath (str): template location
+            inputPath (str): input data location
+            outputPath (str): output data location
+
+        Returns:
+            dm.Job: a created Dataflow job
+        """
+        body = {
+            "gcsPath": template_path,
+            "jobName": job_name,
+            "parameters": {"inputFile": input_path, "output": output_path},
         }
-        response = self._df_service.projects().templates().create(projectId=self.project_id, body=newBody).execute()
-        return response
+        response = self._df_service.projects().templates().create(projectId=self.project_id, body=body).execute()
+
+        one_job = dm.Job(name=response["name"], id=response["id"])
+        one_job._api_results = response
+        one_job._df = self
+
+        return one_job
 
     def list_jobs(self) -> List[dm.Job]:
         response = (
