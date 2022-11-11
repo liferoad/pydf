@@ -30,9 +30,20 @@ class Dataflow:
         self.location_id = location_id
         self._parent = f"projects/{project_id}/locations/{location_id}"
 
-    def create_job(self) -> dm.Job:
+    def create_job(self, job: dm.Job) -> dm.Job:
+        """Create a Dataflow job
+
+        Args:
+            job (dm.Job): information for a Dataflow job to be created
+
+        Returns:
+            dm.Job: a updated Dataflow Job object
+        """
         response = self._df_service.projects().locations().jobs().create(project_id=self.project_id).execute()
-        return response
+        one_job = dm.Job(name=response["name"], id=response["id"])
+        one_job._api_results = response
+        one_job._df = self
+        return one_job
 
     def create_job_from_template(self, templatePath, inputPath, outputPath) -> dm.Job:
         newBody = {
@@ -43,15 +54,21 @@ class Dataflow:
         response = self._df_service.projects().templates().create(projectId=self.project_id, body=newBody).execute()
         return response
 
-    def list_jobs(self) -> dm.Job:
+    def list_jobs(self) -> List[dm.Job]:
         response = (
             self._df_service.projects()
             .locations()
             .jobs()
-            .list(project_id=self.project_id, location=self.location_id)
+            .list(projectId=self.project_id, location=self.location_id)
             .execute()
         )
-        return response
+        jobs = []
+        for one_res in response["jobs"]:
+            one_job = dm.Job(name=one_res["name"], id=one_res["id"])
+            one_job._api_results = one_res
+            one_job._df = self
+            jobs.append(one_job)
+        return jobs
 
     def list_data_pipelines(self) -> List[dm.DataPipeline]:
         res = self._dp_service.projects().locations().listPipelines(parent=self._parent).execute()
@@ -70,6 +87,14 @@ class Dataflow:
         return pipelines
 
     def create_data_pipeline(self, data_pipeline: dm.DataPipeline) -> dm.DataPipeline:
+        """Create a data pipeline
+
+        Args:
+            data_pipeline (dm.DataPipeline): information for a data pipeline to be created
+
+        Returns:
+            dm.DataPipeline: a updated DataPipeline object
+        """
         if not data_pipeline.name:
             data_pipeline.name = f"{self._parent}/pipelines/{data_pipeline.short_name}"
 
