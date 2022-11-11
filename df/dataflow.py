@@ -1,5 +1,5 @@
 # standard libraries
-from typing import List
+from typing import Dict, List, Union
 
 # third party libraries
 from google.oauth2 import service_account
@@ -8,6 +8,7 @@ from pydantic import FilePath
 
 # pydf libraries
 from df import models as dm
+from df import options as op
 
 
 class Dataflow:
@@ -30,41 +31,50 @@ class Dataflow:
         self.location_id = location_id
         self._parent = f"projects/{project_id}/locations/{location_id}"
 
-    def create_job(self, job: dm.Job) -> dm.Job:
+    def create_job(self, body: Dict) -> dm.Job:
         """Create a Dataflow job
 
         Args:
-            job (dm.Job): information for a Dataflow job to be created
+            body (Dict): information for a Dataflow job to be created
 
         Returns:
             dm.Job: a updated Dataflow Job object
         """
-        response = self._df_service.projects().locations().jobs().create(project_id=self.project_id).execute()
+        response = (
+            self._df_service.projects().locations().jobs().create(project_id=self.project_id, body=body).execute()
+        )
         one_job = dm.Job(name=response["name"], id=response["id"])
         one_job._api_results = response
         one_job._df = self
         return one_job
 
-    def create_job_from_template(self, job_name: str, template_path: str, input_path: str, output_path: str) -> dm.Job:
+    def create_job_from_template(self, template: Union[op.WordCountTemplate, Dict]) -> dm.Job:
+
         """Create a job from a Classic template
 
         Args:
             job_name(str): a Dataflow job name
-            templatePath (str): template location
-            inputPath (str): input data location
-            outputPath (str): output data location
+            template (Dict or one of predefined templates): template information
 
         Returns:
             dm.Job: a created Dataflow job
         """
-        body = {
-            "gcsPath": template_path,
-            "jobName": job_name,
-            "parameters": {"inputFile": input_path, "output": output_path},
-        }
-        response = self._df_service.projects().templates().create(projectId=self.project_id, body=body).execute()
 
-        one_job = dm.Job(name=response["name"], id=response["id"])
+        if isinstance(template, Dict):
+            body = template.copy()
+            gcs_path = body.pop("gcsPath")
+        elif isinstance(template, op.WordCountTemplate):
+            gcs_path = template.gcsPath
+            body = template.dict(exclude={"gcsPath"})
+
+        response = (
+            self._df_service.projects()
+            .templates()
+            .launch(projectId=self.project_id, gcsPath=gcs_path, body=body)
+            .execute()
+        )
+
+        one_job = dm.Job(name=response["job"]["name"], id=response["job"]["id"])
         one_job._api_results = response
         one_job._df = self
 
