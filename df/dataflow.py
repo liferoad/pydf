@@ -32,8 +32,6 @@ class Dataflow:
 
     def create_job(self) -> dm.Job:
         response = self._df_service.projects().locations().jobs().create(project_id=self.project_id).execute()
-<<<<<<< HEAD
-=======
         return response
 
     def create_job_from_template(self, templatePath, inputPath, outputPath) -> dm.Job:
@@ -43,7 +41,6 @@ class Dataflow:
             "parameters": {"inputFile": inputPath, "output": outputPath},
         }
         response = self._df_service.projects().templates().create(projectId=self.project_id, body=newBody).execute()
->>>>>>> 734623e (Added create_job_from_template)
         return response
 
     def list_jobs(self) -> dm.Job:
@@ -71,7 +68,6 @@ class Dataflow:
             one_p._df = self
             pipelines.append(one_p)
         return pipelines
-<<<<<<< HEAD
 
     def create_data_pipeline(self, data_pipeline: dm.DataPipeline) -> dm.DataPipeline:
         if not data_pipeline.name:
@@ -94,5 +90,3 @@ class Dataflow:
         one_dp._api_results = res
         one_dp._df = self
         return one_dp
-=======
->>>>>>> 734623e (Added create_job_from_template)
