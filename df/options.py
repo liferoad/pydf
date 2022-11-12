@@ -1,3 +1,6 @@
+# standard libraries
+from typing import Dict
+
 # third party libraries
 from pydantic import BaseModel, Field
 
@@ -13,14 +16,32 @@ class Environment(BaseModel):
     zone: str = Field("us-central1-f", description="GCE zone")
 
 
-class WordCountParameters(BaseModel):
-    inputFile: str = Field(..., description="input file")
-    output: str = Field(..., description="output file")
+class OptionBuilder(BaseModel):
+    """Abstract class to build options for Dataflow APIs"""
 
-
-class WordCountTemplate(BaseModel):
-    # Details: https://cloud.google.com/dataflow/docs/guides/templates/provided-templates#running-the-wordcount-template
-    gcsPath: str = Field(_get_template_path("Word_Count"), description="Word_Count template location")
-    jobName: str = Field(..., description="a Dataflow job name")
-    parameters: WordCountParameters = Field(..., description="parameters for Word_Count")
     environment: Environment = Field(Environment(), description="computing environment")
+
+    @property
+    def body(self) -> Dict:
+        """Translate options to Dataflow API options"""
+        raise NotImplementedError
+
+
+class WordCountTemplate(OptionBuilder):
+    # Details: https://cloud.google.com/dataflow/docs/guides/templates/provided-templates#running-the-wordcount-template
+    gcs_path: str = Field(_get_template_path("Word_Count"), description="Word_Count template location")
+    job_name: str = Field(..., description="a Dataflow job name")
+    input_file: str = Field(..., description="input file")
+    output_file: str = Field(..., description="output file")
+
+    @property
+    def body(self) -> Dict:
+        return {
+            "gcsPath": self.gcs_path,
+            "jobName": self.job_name,
+            "parameters": {
+                "inputFile": self.input_file,
+                "output": self.output_file,
+            },
+            "environment": self.environment.dict(),
+        }

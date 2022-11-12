@@ -48,7 +48,7 @@ class Dataflow:
         one_job._df = self
         return one_job
 
-    def create_job_from_template(self, template: Union[op.WordCountTemplate, Dict]) -> dm.Job:
+    def create_job_from_template(self, template: Union[op.OptionBuilder, Dict]) -> dm.Job:
 
         """Create a job from a Classic template
 
@@ -62,10 +62,10 @@ class Dataflow:
 
         if isinstance(template, Dict):
             body = template.copy()
-            gcs_path = body.pop("gcsPath")
-        elif isinstance(template, op.WordCountTemplate):
-            gcs_path = template.gcsPath
-            body = template.dict(exclude={"gcsPath"})
+            gcs_path = body.pop("gcsPath", None)
+        elif isinstance(template, op.OptionBuilder):
+            body = template.body
+            gcs_path = body.pop("gcsPath", None)
 
         response = (
             self._df_service.projects()
