@@ -75,7 +75,7 @@ class Dataflow:
         )
 
         one_job = dm.Job(name=response["job"]["name"], id=response["job"]["id"])
-        one_job._api_results = response
+        one_job._api_results = response["job"]
         one_job._df = self
 
         return one_job

@@ -7,6 +7,7 @@ from pydantic import Field
 
 # pydf libraries
 from df.data_pipeline_mixin import _DataPipelineMixin
+from df.dataflow_job_mixin import _DataflowJobMixin
 
 
 class BaseModel(_BaseModel):
@@ -18,7 +19,7 @@ class BaseModel(_BaseModel):
         underscore_attrs_are_private = True
 
 
-class Job(BaseModel):
+class Job(BaseModel, _DataflowJobMixin):
     """Dataflow job information"""
 
     name: str = Field(..., description="Dataflow job name")
