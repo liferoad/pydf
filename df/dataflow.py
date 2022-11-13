@@ -64,7 +64,7 @@ class Dataflow:
             body = template.copy()
             gcs_path = body.pop("gcsPath", None)
         elif isinstance(template, op.OptionBuilder):
-            body = template.body
+            body = template.body(self)
             gcs_path = body.pop("gcsPath", None)
 
         response = (
@@ -126,7 +126,7 @@ class Dataflow:
         if isinstance(data_pipeline, Dict):
             body = data_pipeline
         elif isinstance(data_pipeline, op.DataPipelineBuilder):
-            body = data_pipeline.body
+            body = data_pipeline.body(self)
         else:
             raise ValueError("Wrong data type for data_pipelines.")
 

@@ -1,4 +1,5 @@
 # standard libraries
+from abc import abstractmethod
 from typing import Dict, Optional
 
 # third party libraries
@@ -21,8 +22,8 @@ class OptionBuilder(BaseModel):
 
     environment: Environment = Field(Environment(), description="computing environment")
 
-    @property
-    def body(self) -> Dict:
+    @abstractmethod
+    def body(self, dw: "Dataflow") -> Dict:  # noqa F821
         """Translate options to Dataflow API options"""
         raise NotImplementedError
 
@@ -34,8 +35,7 @@ class WordCountTemplate(OptionBuilder):
     input_file: str = Field(..., description="input file")
     output_file: str = Field(..., description="output file")
 
-    @property
-    def body(self) -> Dict:
+    def body(self, dw: "Dataflow") -> Dict:  # noqa F821
         return {
             "gcsPath": self.gcs_path,
             "jobName": self.job_name,
@@ -50,12 +50,10 @@ class WordCountTemplate(OptionBuilder):
 class DataPipelineBuilder(BaseModel):
     """Abstract class to build API options for Data Pipelines"""
 
-    project_id: str = Field(..., description="Project id")
-    location_id: str = Field(..., description="a Dataflow service region")
     short_name: str = Field(..., description="Data pipeline short name without project and location ids")
 
     # https://cloud.google.com/scheduler/docs/configuring/cron-job-schedules#cron_job_format
-    scheduler: Optional[str] = Field(None, description="Cron job format")
+    scheduler: Optional[str] = Field("15 * * * *", description="Cron job format")
     # https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
     time_zone: Optional[str] = Field("America/New_York", description="TZ database time zone name")
 
@@ -64,18 +62,14 @@ class DataPipelineBuilder(BaseModel):
     type: Optional[str] = Field(None, description="Data pipeline type")
     state: Optional[str] = Field(None, description="Data pipeline state")
 
-    @property
-    def body(self) -> Dict:
+    @abstractmethod
+    def body(self, dw: "Dataflow") -> Dict:  # noqa F821
         """Translate options to the API options for Data Pipelines"""
         raise NotImplementedError
 
     @root_validator(pre=False)
     def _set_fields(cls, values: dict) -> dict:
-        """Set name based on the short name when name is None"""
-        if not values["name"]:
-            values["name"] = "projects/{}/locations/{}/pipelines/{}".format(
-                values["project_id"], values["location_id"], values["short_name"]
-            )
+        """Set display_name"""
         if not values["display_name"]:
             values["display_name"] = values["short_name"]
         return values
@@ -88,23 +82,25 @@ class WordCountDataPipeline(DataPipelineBuilder):
     output_file: str = Field(..., description="output file")
     temp_location: str = Field(..., description="temp file location")
 
-    @property
-    def body(self) -> Dict:
+    def body(self, dw: "Dataflow") -> Dict:  # noqa F821
         """Translate options to the API options for Data Pipelines"""
+        if not self.name:
+            self.name = "projects/{}/locations/{}/pipelines/{}".format(dw.project_id, dw.location_id, self.short_name)
+
         payload_body = {
             "name": self.name,
             "displayName": self.display_name,
             "type": "PIPELINE_TYPE_BATCH",
             "workload": {
                 "dataflowLaunchTemplateRequest": {
-                    "projectId": self.project_id,
+                    "projectId": dw.project_id,
                     "gcsPath": self.gcs_path,
                     "launchParameters": {
                         "jobName": self.short_name,
                         "parameters": {"output": self.output_file, "inputFile": self.input_file},
                         "environment": {"tempLocation": self.temp_location},
                     },
-                    "location": self.location_id,
+                    "location": dw.location_id,
                 }
             },
         }
