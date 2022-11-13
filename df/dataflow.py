@@ -81,6 +81,7 @@ class Dataflow:
         return one_job
 
     def list_jobs(self) -> List[dm.Job]:
+        """List Dataflow Jobs under a project for a given location"""
         response = (
             self._df_service.projects()
             .locations()
@@ -97,6 +98,7 @@ class Dataflow:
         return jobs
 
     def list_data_pipelines(self) -> List[dm.DataPipeline]:
+        """List data pipelines under a project for a given location"""
         res = self._dp_service.projects().locations().listPipelines(parent=self._parent).execute()
         pipelines = []
         for one_res in res["pipelines"]:
@@ -112,25 +114,23 @@ class Dataflow:
             pipelines.append(one_p)
         return pipelines
 
-    def create_data_pipeline(self, data_pipeline: dm.DataPipeline) -> dm.DataPipeline:
+    def create_data_pipeline(self, data_pipeline: Union[op.DataPipelineBuilder, Dict]) -> dm.DataPipeline:
         """Create a data pipeline
 
         Args:
-            data_pipeline (dm.DataPipeline): information for a data pipeline to be created
+            data_pipeline (op.DataPipelineBuilder, Dict): information for a data pipeline to be created
 
         Returns:
-            dm.DataPipeline: a updated DataPipeline object
+            dm.DataPipeline: a created DataPipeline object
         """
-        if not data_pipeline.name:
-            data_pipeline.name = f"{self._parent}/pipelines/{data_pipeline.short_name}"
+        if isinstance(data_pipeline, Dict):
+            body = data_pipeline
+        elif isinstance(data_pipeline, op.DataPipelineBuilder):
+            body = data_pipeline.body
+        else:
+            raise ValueError("Wrong data type for data_pipelines.")
 
-        res = (
-            self._dp_service.projects()
-            .locations()
-            .pipelines()
-            .create(parent=self._parent, body=dict(name=data_pipeline.name))
-            .execute()
-        )
+        res = self._dp_service.projects().locations().pipelines().create(parent=self._parent, body=body).execute()
         one_dp = dm.DataPipeline(
             short_name=data_pipeline.short_name,
             name=res["name"],
