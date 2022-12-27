@@ -1,5 +1,5 @@
 # beam
-apache-beam[gcp]
+apache-beam[gcp,interactive]
 
 # gcp client library
 google-api-python-client
