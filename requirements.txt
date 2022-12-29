@@ -7,3 +7,7 @@ google-cloud-dataflow-client
 
 # pydantic
 pydantic
+
+# extra packages
+graphviz
+sentence-transformers
