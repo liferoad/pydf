@@ -15,7 +15,7 @@ from sentence_transformers import SentenceTransformer
 
 def create_beam_pipeline() -> beam.Pipeline:
     try:
-        get_ipython  # noqa
+        get_ipython  # type: ignore
         return beam.Pipeline(InteractiveRunner(), options=PipelineOptions())
     except NameError:
         return beam.Pipeline(DirectRunner(), options=PipelineOptions())
