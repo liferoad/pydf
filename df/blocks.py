@@ -1,4 +1,5 @@
 # standard libraries
+import uuid
 from typing import Any, List, Optional, Union
 
 # third party libraries
@@ -21,8 +22,9 @@ def create_beam_pipeline() -> beam.Pipeline:
 
 
 class Block(BaseModel):
-    source: List["Block"] = []
-    target: List["Block"] = []
+    block_id: Optional[uuid.UUID] = Field(default_factory=uuid.uuid4, description="block UUID4")
+    source_ids: List[uuid.UUID] = []
+    target_ids: List[uuid.UUID] = []
     operation: Union[beam.ParDo, beam.Create] = Field(..., description="the block operation")
     o: beam.pvalue.PCollection = Field(None, description="the output PCollection for the above operation")
 
@@ -56,6 +58,7 @@ class SentenceEmbeddingBlock(Block):
 class BlockAssembler:
     def __init__(self, blocks: List[Block], p: beam.pipeline.Pipeline):
         self.blocks = blocks
+        self.id_to_block = {block.block_id: block for block in blocks}
         self.p = p
 
     @classmethod
@@ -63,19 +66,20 @@ class BlockAssembler:
         # connect all the blocks using the list order
         for i, block in enumerate(blocks):
             if i > 0:
-                block.source = [blocks[i - 1]]
+                block.source_ids = [blocks[i - 1].block_id]
             if i < (len(blocks) - 1):
-                block.target = [blocks[i + 1]]
+                block.target_ids = [blocks[i + 1].block_id]
         return cls(blocks, p)
 
     def compile(self):
         def _build_o(o, blocks, parsed_block):
             for block in blocks:
-                if hex(id(block)) not in parsed_block:
+                if block.block_id not in parsed_block:
                     block.o = o | block.operation
-                    parsed_block.append(hex(id(block)))
-                if block.target:
-                    _build_o(block.o, block.target, parsed_block)
+                    parsed_block.append(block.block_id)
+                if block.target_ids:
+                    targets = [self.id_to_block[t] for t in block.target_ids]
+                    _build_o(block.o, targets, parsed_block)
             return
 
         _build_o(self.p, self.blocks, [])
