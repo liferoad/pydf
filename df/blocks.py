@@ -1,4 +1,5 @@
 # standard libraries
+import json
 import uuid
 from typing import Any, List, Optional, Union
 
@@ -16,12 +17,20 @@ from sentence_transformers import SentenceTransformer
 def create_beam_pipeline() -> beam.Pipeline:
     try:
         get_ipython  # type: ignore
-        return beam.Pipeline(InteractiveRunner(), options=PipelineOptions())
+        return beam.Pipeline(InteractiveRunner(), options=PipelineOptions(flags={}))
     except NameError:
-        return beam.Pipeline(DirectRunner(), options=PipelineOptions())
+        return beam.Pipeline(DirectRunner(), options=PipelineOptions(flags={}))
+
+
+class UUIDEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, uuid.UUID):
+            return str(obj)
+        return json.JSONEncoder.default(self, obj)
 
 
 class Block(BaseModel):
+    block_type: str
     block_id: Optional[uuid.UUID] = Field(default_factory=uuid.uuid4, description="block UUID4")
     source_ids: List[uuid.UUID] = []
     target_ids: List[uuid.UUID] = []
@@ -34,6 +43,7 @@ class Block(BaseModel):
 
 
 class CreateBlock(Block):
+    block_type: str = "Create"
     values: List[Any] = Field(..., description="a list of values to create as the Beam input data")
 
     @root_validator(pre=True)
@@ -43,6 +53,7 @@ class CreateBlock(Block):
 
 
 class SentenceEmbeddingBlock(Block):
+    block_type: str = "SentenceEmbedding"
     model_name: Optional[str] = Field(
         default="all-MiniLM-L6-v2", description="a model name supported by sentence_transformers"
     )
@@ -56,13 +67,16 @@ class SentenceEmbeddingBlock(Block):
 
 
 class BlockAssembler:
-    def __init__(self, blocks: List[Block], p: beam.pipeline.Pipeline):
+    def __init__(self, blocks: List[Block], p: beam.pipeline.Pipeline = None):
         self.blocks = blocks
         self.id_to_block = {block.block_id: block for block in blocks}
-        self.p = p
+        if p:
+            self.p = p
+        else:
+            self.p = create_beam_pipeline()
 
     @classmethod
-    def Sequential(cls, blocks: List[Block], p: beam.pipeline.Pipeline):
+    def Sequential(cls, blocks: List[Block], p: beam.pipeline.Pipeline = None):
         # connect all the blocks using the list order
         for i, block in enumerate(blocks):
             if i > 0:
@@ -90,3 +104,22 @@ class BlockAssembler:
 
     def block_data(self, block: Block) -> pd.DataFrame:
         return ib.collect(block.o)
+
+    def to_dict(self) -> dict:
+        return {"blocks": [block.dict(exclude={"operation", "o"}) for block in self.blocks]}
+
+    def to_json(self, **kwargs) -> str:
+        return json.dumps(self.to_dict(), cls=UUIDEncoder, **kwargs)
+
+    @classmethod
+    def from_json(cls, json_str: str, p: beam.pipeline.Pipeline = None):
+        block_dicts = json.loads(json_str)
+        blocks = []
+        for block_dict in block_dicts["blocks"]:
+            if block_dict.get("block_type") == "Create":
+                blocks.append(CreateBlock(**block_dict))
+            elif block_dict.get("block_type") == "SentenceEmbedding":
+                blocks.append(SentenceEmbeddingBlock(**block_dict))
+            else:
+                raise ValueError(f"wrong block information: {block_dict}")
+        return cls(blocks, p)
