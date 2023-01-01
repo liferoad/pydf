@@ -1,7 +1,7 @@
 # standard libraries
 import json
 import uuid
-from typing import Any, List, Optional, Union
+from typing import Any, ForwardRef, List, Optional, Union
 
 # third party libraries
 import apache_beam as beam
@@ -29,6 +29,9 @@ class UUIDEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, obj)
 
 
+Block = ForwardRef("Block")
+
+
 class Block(BaseModel):
     block_type: str
     block_id: Optional[uuid.UUID] = Field(default_factory=uuid.uuid4, description="block UUID4")
@@ -36,10 +39,25 @@ class Block(BaseModel):
     target_ids: List[uuid.UUID] = []
     operation: Union[beam.ParDo, beam.Create] = Field(..., description="the block operation")
     o: beam.pvalue.PCollection = Field(None, description="the output PCollection for the above operation")
+    _sources: List[Block] = []
+    _targets: List[Block] = []
 
     class Config:
         arbitrary_types_allowed = True
         underscore_attrs_are_private = True
+
+    def __call__(self, sources: Union[Block, List[Block]]) -> Block:
+        if not isinstance(sources, list):
+            sources = [sources]
+        self._sources = sources
+        for block in sources:
+            self.source_ids.append(block.block_id)
+            block.target_ids.append(self.block_id)
+            block._targets.append(self)
+        return self
+
+
+Block.update_forward_refs()
 
 
 class CreateBlock(Block):
@@ -50,6 +68,9 @@ class CreateBlock(Block):
     def _set_fields(cls, values: dict) -> dict:
         values["operation"] = beam.Create(values["values"])
         return values
+
+    def __call__(self, sources: List[Block] = None) -> Block:
+        raise ValueError("CreateBlock cannot be callable")
 
 
 class SentenceEmbeddingBlock(Block):
@@ -67,9 +88,27 @@ class SentenceEmbeddingBlock(Block):
 
 
 class BlockAssembler:
-    def __init__(self, blocks: List[Block], p: beam.pipeline.Pipeline = None):
+    def __init__(self, blocks: Union[Block, List[Block]], p: beam.pipeline.Pipeline = None):
+        if not isinstance(blocks, list):
+            if blocks.block_type != "Create":
+                raise ValueError("Cannot build")
+            blocks = [blocks]
+
         self.blocks = blocks
-        self.id_to_block = {block.block_id: block for block in blocks}
+        self.id_to_block = {}
+
+        # parse all blocks
+        def _get_all_blocks(_blocks):
+            for _block in _blocks:
+                self.id_to_block[_block.block_id] = _block
+                if _block._targets:
+                    for s in _block._targets:
+                        self.id_to_block[s.block_id] = s
+                    _get_all_blocks(_block._targets)
+            return
+
+        _get_all_blocks(self.blocks)
+
         if p:
             self.p = p
         else:
@@ -89,7 +128,7 @@ class BlockAssembler:
         def _build_o(o, blocks, parsed_block):
             for block in blocks:
                 if block.block_id not in parsed_block:
-                    block.o = o | block.operation
+                    block.o = o | f"{block.block_type} - {block.block_id}" >> block.operation
                     parsed_block.append(block.block_id)
                 if block.target_ids:
                     targets = [self.id_to_block[t] for t in block.target_ids]
