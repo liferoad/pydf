@@ -40,6 +40,8 @@ Block = ForwardRef("Block")
 
 
 class Block(BaseModel):
+    """Base class for any block"""
+
     block_type: str
     block_id: Optional[uuid.UUID] = Field(default_factory=uuid.uuid4, description="block UUID4")
     source_ids: List[uuid.UUID] = []
@@ -70,6 +72,8 @@ Block.update_forward_refs()
 
 
 class CreateBlock(Block):
+    """Block for the create transform"""
+
     block_type: str = "Create"
     values: List[Any] = Field(..., description="a list of values to create as the Beam input data")
 
@@ -83,6 +87,8 @@ class CreateBlock(Block):
 
 
 class SentenceEmbeddingBlock(Block):
+    """Block for sentence embedding using transformer-based ML models"""
+
     block_type: str = "SentenceEmbedding"
     model_name: Optional[str] = Field(
         default="all-MiniLM-L6-v2", description="a model name supported by sentence_transformers"
@@ -102,7 +108,7 @@ def _cross_join(left, rights):
 
 
 class CrossJoinBlock(Block):
-    """on the fly cross join block"""
+    """On the fly cross join block"""
 
     block_type: str = "CrossJoin"
 
@@ -116,11 +122,15 @@ class CrossJoinBlock(Block):
 
 
 class CosSimilarityBlock(Block):
+    """Block for computing cosine similarity for two vectors"""
+
     block_type: str = "CosSimilarity"
     operation: beam.ParDo = beam.Map(lambda x: float(st_util.cos_sim(x[0], x[1])[0][0]))
 
 
 class BlockAssembler:
+    """Block assembler"""
+
     def __init__(
         self,
         blocks: Union[Block, List[Block]],
