@@ -1,6 +1,7 @@
 # standard libraries
 import json
 import uuid
+from enum import Enum
 from typing import Any, ForwardRef, List, Optional, Union
 
 # third party libraries
@@ -13,6 +14,11 @@ from apache_beam.runners.interactive.interactive_runner import InteractiveRunner
 from pydantic import BaseModel, Field, root_validator
 from sentence_transformers import SentenceTransformer
 from sentence_transformers import util as st_util
+
+
+class ModelType(str, Enum):
+    SEQUENTIAL = "SEQUENTIAL"
+    FUNCTIONAL = "FUNCTIONAL"
 
 
 def create_beam_pipeline() -> beam.Pipeline:
@@ -115,26 +121,41 @@ class CosSimilarityBlock(Block):
 
 
 class BlockAssembler:
-    def __init__(self, blocks: Union[Block, List[Block]], p: beam.pipeline.Pipeline = None):
+    def __init__(
+        self,
+        blocks: Union[Block, List[Block]],
+        p: beam.pipeline.Pipeline = None,
+        model_type: ModelType = ModelType.FUNCTIONAL,
+    ):
         if not isinstance(blocks, list):
-            if blocks.block_type != "Create":
-                raise ValueError("Cannot build")
             blocks = [blocks]
 
+        if model_type == ModelType.FUNCTIONAL:
+            for block in blocks:
+                if block.block_type != "Create":
+                    raise ValueError(
+                        "Cannot build the model with functional API since only Create blocks are supported now"
+                    )
+
         self.blocks = blocks
-        self.id_to_block = {}
+        self.model_type = model_type
 
-        # parse all blocks
-        def _get_all_blocks(_blocks):
-            for _block in _blocks:
-                self.id_to_block[_block.block_id] = _block
-                if _block._targets:
-                    for s in _block._targets:
-                        self.id_to_block[s.block_id] = s
-                    _get_all_blocks(_block._targets)
-            return
+        if model_type == ModelType.SEQUENTIAL:
+            self.id_to_block = {block.block_id: block for block in blocks}
+        else:
+            self.id_to_block = {}
 
-        _get_all_blocks(self.blocks)
+            # parse all blocks
+            def _get_all_blocks(_blocks):
+                for _block in _blocks:
+                    self.id_to_block[_block.block_id] = _block
+                    if _block._targets:
+                        for s in _block._targets:
+                            self.id_to_block[s.block_id] = s
+                        _get_all_blocks(_block._targets)
+                return
+
+            _get_all_blocks(self.blocks)
 
         if p:
             self.p = p
@@ -149,7 +170,7 @@ class BlockAssembler:
                 block.source_ids = [blocks[i - 1].block_id]
             if i < (len(blocks) - 1):
                 block.target_ids = [blocks[i + 1].block_id]
-        return cls(blocks, p)
+        return cls(blocks, p, ModelType.SEQUENTIAL)
 
     def compile(self):
         def _build_o(o, blocks, parsed_block):
@@ -176,7 +197,10 @@ class BlockAssembler:
         return ib.collect(block.o)
 
     def to_dict(self) -> dict:
-        return {"blocks": [block.dict(exclude={"operation", "o"}) for block in self.blocks]}
+        return {
+            "blocks": [block.dict(exclude={"operation", "o"}) for _, block in self.id_to_block.items()],
+            "model_type": self.model_type,
+        }
 
     def to_json(self, **kwargs) -> str:
         return json.dumps(self.to_dict(), cls=UUIDEncoder, **kwargs)
@@ -185,11 +209,25 @@ class BlockAssembler:
     def from_json(cls, json_str: str, p: beam.pipeline.Pipeline = None):
         block_dicts = json.loads(json_str)
         blocks = []
+        input_blocks = []
         for block_dict in block_dicts["blocks"]:
             if block_dict.get("block_type") == "Create":
-                blocks.append(CreateBlock(**block_dict))
+                create_b = CreateBlock(**block_dict)
+                blocks.append(create_b)
+                input_blocks.append(create_b)
             elif block_dict.get("block_type") == "SentenceEmbedding":
                 blocks.append(SentenceEmbeddingBlock(**block_dict))
+            elif block_dict.get("block_type") == "CrossJoin":
+                blocks.append(CrossJoinBlock(**block_dict))
+            elif block_dict.get("block_type") == "CosSimilarity":
+                blocks.append(CosSimilarityBlock(**block_dict))
             else:
                 raise ValueError(f"wrong block information: {block_dict}")
-        return cls(blocks, p)
+        if block_dicts["model_type"] == ModelType.FUNCTIONAL.value:
+            id_maps = {block.block_id: block for block in blocks}
+            for block in blocks:
+                block._targets = [id_maps[t_id] for t_id in block.target_ids]
+                block._sources = [id_maps[s_id] for s_id in block.source_ids]
+            return cls(input_blocks, p, block_dicts["model_type"])
+        else:
+            return cls(blocks, p, block_dicts["model_type"])
