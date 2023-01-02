@@ -149,6 +149,7 @@ class BlockAssembler:
 
         self.blocks = blocks
         self.model_type = model_type
+        self._is_compiled = False
 
         if model_type == ModelType.SEQUENTIAL:
             self.id_to_block = {block.block_id: block for block in blocks}
@@ -183,6 +184,9 @@ class BlockAssembler:
         return cls(blocks, p, ModelType.SEQUENTIAL)
 
     def compile(self):
+        if self._is_compiled:
+            raise ValueError("Graph can only be compiled once. Please rebuild the model.")
+
         def _build_o(o, blocks, parsed_block):
             for block in blocks:
                 if block.block_id not in parsed_block:
@@ -198,9 +202,13 @@ class BlockAssembler:
             return
 
         _build_o(self.p, self.blocks, [])
+        self._is_compiled = True
         return
 
     def show_graph(self):
+        # auto compile
+        if not self._is_compiled:
+            self.compile()
         ib.show_graph(self.p)
 
     def block_data(self, block: Block) -> pd.DataFrame:
