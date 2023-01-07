@@ -1,7 +1,9 @@
 # pydf
 Python package for Dataflow at GCP
 
-## Install from this repo
+## User's Guide
+
+### Install from this repo
 
 ```bash
 pip install -U git+https://github.com/liferoad/pydf
@@ -39,6 +41,3 @@ Run tests:
 make test
 ```
 
-## User's Guide
-
-To-Do.
