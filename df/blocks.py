@@ -26,7 +26,9 @@ def create_beam_pipeline() -> beam.Pipeline:
         get_ipython  # type: ignore
         return beam.Pipeline(InteractiveRunner(), options=PipelineOptions(flags={}))
     except NameError:
-        return beam.Pipeline(DirectRunner(), options=PipelineOptions(flags={}))
+        # always use InteractiveRunner for now.
+        # Possible a bug in Beam (_skip_display not set)
+        return beam.Pipeline(InteractiveRunner(DirectRunner()), options=PipelineOptions(flags={}))
 
 
 class UUIDEncoder(json.JSONEncoder):
@@ -148,6 +150,7 @@ class BlockAssembler:
                     )
 
         self.blocks = blocks
+        self._source_blocks = blocks
         self.model_type = model_type
         self._is_compiled = False
 
@@ -167,6 +170,9 @@ class BlockAssembler:
                 return
 
             _get_all_blocks(self.blocks)
+
+            # set all blocks
+            self.blocks = [self.id_to_block[id] for id in self.id_to_block]
 
         if p:
             self.p = p
@@ -201,7 +207,7 @@ class BlockAssembler:
                         _build_o(block.o, targets, parsed_block)
             return
 
-        _build_o(self.p, self.blocks, [])
+        _build_o(self.p, self._source_blocks, [])
         self._is_compiled = True
         return
 
@@ -212,6 +218,9 @@ class BlockAssembler:
         ib.show_graph(self.p)
 
     def block_data(self, block: Block) -> pd.DataFrame:
+        # auto compile
+        if not self._is_compiled:
+            self.compile()
         return ib.collect(block.o)
 
     def to_dict(self) -> dict:

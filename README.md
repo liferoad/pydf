@@ -1,6 +1,12 @@
 # pydf
 Python package for Dataflow at GCP
 
+## Install from this repo
+
+```bash
+pip install -U git+https://github.com/liferoad/pydf
+```
+
 ## Developer's Guide
 
 ### Requirements
