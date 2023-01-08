@@ -8,10 +8,11 @@ from typing import Any, ForwardRef, List, Optional, Union
 import apache_beam as beam
 import apache_beam.runners.interactive.interactive_beam as ib
 import pandas as pd
+from apache_beam.dataframe.io import read_csv
 from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.runners.direct import DirectRunner
 from apache_beam.runners.interactive.interactive_runner import InteractiveRunner
-from pydantic import BaseModel, Field, root_validator
+from pydantic import BaseModel, Extra, Field, root_validator
 from sentence_transformers import SentenceTransformer
 from sentence_transformers import util as st_util
 
@@ -48,7 +49,9 @@ class Block(BaseModel):
     block_id: Optional[uuid.UUID] = Field(default_factory=uuid.uuid4, description="block UUID4")
     source_ids: List[uuid.UUID] = []
     target_ids: List[uuid.UUID] = []
-    operation: Optional[Union[beam.ParDo, beam.Create]] = Field(None, description="the block operation")
+    operation: Optional[Union[beam.ParDo, beam.Create, beam.PTransform]] = Field(
+        None, description="the block operation"
+    )
     o: beam.pvalue.PCollection = Field(None, description="the output PCollection for the above operation")
     _sources: List[Block] = []
     _targets: List[Block] = []
@@ -56,6 +59,7 @@ class Block(BaseModel):
     class Config:
         arbitrary_types_allowed = True
         underscore_attrs_are_private = True
+        extra = Extra.allow
 
     def __call__(self, sources: Union[Block, List[Block]]) -> Block:
         if not isinstance(sources, list):
@@ -86,6 +90,23 @@ class CreateBlock(Block):
 
     def __call__(self, sources: List[Block] = None) -> Block:
         raise ValueError("CreateBlock cannot be callable")
+
+
+class ReadCSVBlock(Block):
+    """Block to read a csv file"""
+
+    block_type: str = "ReadCSV"
+    path: str = Field(..., description="a path string for a csv file")
+
+    @root_validator(pre=True)
+    def _set_fields(cls, values: dict) -> dict:
+        values_1 = values.copy()
+        path = values_1.pop("path")
+        values["operation"] = read_csv(path, **values_1)
+        return values
+
+    def __call__(self, sources: List[Block] = None) -> Block:
+        raise ValueError("ReadCSVBlock cannot be callable")
 
 
 class SentenceEmbeddingBlock(Block):
@@ -200,7 +221,7 @@ class BlockAssembler:
                         block.o = o | f"{block.block_type} - {block.block_id}" >> block.operation
                     else:
                         block(block._sources)
-                if block.o:
+                if block.o is not None:
                     parsed_block.append(block.block_id)
                     if block.target_ids:
                         targets = [self.id_to_block[t] for t in block.target_ids]

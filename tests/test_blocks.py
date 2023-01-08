@@ -1,3 +1,6 @@
+# standard libraries
+from pathlib import Path
+
 # pydf libraries
 from df import blocks as blocks
 
@@ -6,6 +9,8 @@ SENTENCES = [
     "Sentences are passed as a list of string.",
     "The quick brown fox jumps over the lazy dog.",
 ]
+
+CURRENT_PATH = Path(__file__).absolute().parent
 
 
 def test_blocks_sequential():
@@ -42,3 +47,10 @@ def test_blocks_functional_api():
         if isinstance(block, blocks.CosSimilarityBlock):
             pdf_1 = new_model.block_data(block)
             assert pdf_1.shape == (3, 1)
+
+
+def test_read_csv_block():
+    csv_b = blocks.ReadCSVBlock(path=str(CURRENT_PATH / "beers.csv"), header=0)
+    model = blocks.BlockAssembler.Sequential([csv_b])
+    pdf = model.block_data(csv_b)
+    assert pdf.shape == (2410, 8)
