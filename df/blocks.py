@@ -8,6 +8,7 @@ from typing import Any, ForwardRef, List, Optional, Union
 import apache_beam as beam
 import apache_beam.runners.interactive.interactive_beam as ib
 import pandas as pd
+from apache_beam.dataframe import convert
 from apache_beam.dataframe.io import read_csv
 from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.runners.direct import DirectRunner
@@ -218,7 +219,12 @@ class BlockAssembler:
             for block in blocks:
                 if block.block_id not in parsed_block:
                     if block.operation:
-                        block.o = o | f"{block.block_type} - {block.block_id}" >> block.operation
+                        if isinstance(o, beam.dataframe.frames.DeferredDataFrame):
+                            block.o = (
+                                convert.to_pcollection(o) | f"{block.block_type} - {block.block_id}" >> block.operation
+                            )
+                        else:
+                            block.o = o | f"{block.block_type} - {block.block_id}" >> block.operation
                     else:
                         block(block._sources)
                 if block.o is not None:
