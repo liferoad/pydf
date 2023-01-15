@@ -1,8 +1,10 @@
 # standard libraries
+import inspect
 import json
+import types
 import uuid
 from enum import Enum
-from typing import Any, ForwardRef, List, Optional, Union
+from typing import Any, Callable, Dict, ForwardRef, List, Optional, Union
 
 # third party libraries
 import apache_beam as beam
@@ -61,6 +63,10 @@ class Block(BaseModel):
         arbitrary_types_allowed = True
         underscore_attrs_are_private = True
         extra = Extra.allow
+
+        json_encoders = {
+            types.FunctionType: lambda v: {v.__name__: inspect.getsource(v)},
+        }
 
     def __call__(self, sources: Union[Block, List[Block]]) -> Block:
         if not isinstance(sources, list):
@@ -143,6 +149,36 @@ class CrossJoinBlock(Block):
                 _cross_join, rights=beam.pvalue.AsIter(sources[1].o)
             )
         return self
+
+
+class DataTransformBlock(Block):
+    """Block for transforming the data using a list of callable functions"""
+
+    block_type: str = "DataTransform"
+    callbacks: Union[List[Callable], List[Dict[str, str]]] = Field(
+        ..., description="A list of callable functions to transform the data"
+    )
+
+    @root_validator(pre=True)
+    def _set_fields(cls, values: dict) -> dict:
+        for one_callback in values["callbacks"]:
+            if isinstance(one_callback, types.FunctionType):
+                one_op = beam.Map(one_callback)
+                if not values.get("operation", None):
+                    values["operation"] = one_op
+                else:
+                    values["operation"] = values["operation"] | one_op
+            else:
+                # parse the dict to create the operation
+                # this supports a list of map operations
+                for one_func in one_callback:
+                    exec(one_callback[one_func])
+                    one_op = beam.Map(locals()[one_func])
+                    if not values.get("operation", None):
+                        values["operation"] = one_op
+                    else:
+                        values["operation"] = values["operation"] | one_op
+        return values
 
 
 class CosSimilarityBlock(Block):
@@ -275,6 +311,8 @@ class BlockAssembler:
                 blocks.append(CrossJoinBlock(**block_dict))
             elif block_dict.get("block_type") == "CosSimilarity":
                 blocks.append(CosSimilarityBlock(**block_dict))
+            elif block_dict.get("block_type") == "DataTransform":
+                blocks.append(DataTransformBlock(**block_dict))
             else:
                 raise ValueError(f"wrong block information: {block_dict}")
         if block_dicts["model_type"] == ModelType.FUNCTIONAL.value:

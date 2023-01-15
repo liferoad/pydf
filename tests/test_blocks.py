@@ -54,3 +54,25 @@ def test_read_csv_block():
     model = blocks.BlockAssembler.Sequential([csv_b])
     pdf = model.block_data(csv_b)
     assert pdf.shape == (2410, 8)
+
+
+def _del_unwanted_cols(data):
+    """Delete the unwanted columns"""
+    del data["ibu"]
+    del data["brewery_id"]
+    return data
+
+
+def _discard_incomplete(data):
+    """Filters out records based on id"""
+    return data["id"] > 100
+
+
+def test_data_transform_block():
+
+    dt_b = blocks.DataTransformBlock(callbacks=[_del_unwanted_cols, _discard_incomplete])
+    assert len(dt_b.callbacks) == 2
+
+    dtb_b_in_json = dt_b.json(exclude={"o", "operation"})
+    dt_b1 = blocks.DataTransformBlock.parse_raw(dtb_b_in_json)
+    assert len(dt_b1.callbacks) == 2
