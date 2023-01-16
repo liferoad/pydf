@@ -56,23 +56,31 @@ def test_read_csv_block():
     assert pdf.shape == (2410, 8)
 
 
-def _del_unwanted_cols(data):
-    """Delete the unwanted columns"""
-    del data["ibu"]
-    del data["brewery_id"]
+def _fill_missing(data):
+    """fill missing with a constant for the ibu field"""
+    if data.ibu is None:
+        return data._replace(ibu=-1.0)
     return data
-
-
-def _discard_incomplete(data):
-    """Filters out records based on id"""
-    return data["id"] > 100
 
 
 def test_data_transform_block():
 
-    dt_b = blocks.DataTransformBlock(callbacks=[_del_unwanted_cols, _discard_incomplete])
-    assert len(dt_b.callbacks) == 2
+    dt_b = blocks.DataTransformBlock(callbacks=[_fill_missing])
+    assert len(dt_b.callbacks) == 1
 
     dtb_b_in_json = dt_b.json(exclude={"o", "operation"})
     dt_b1 = blocks.DataTransformBlock.parse_raw(dtb_b_in_json)
-    assert len(dt_b1.callbacks) == 2
+    assert len(dt_b1.callbacks) == 1
+
+
+def test_full_data_transform_pipeline():
+    csv_b = blocks.ReadCSVBlock(path=str(CURRENT_PATH / "beers.csv"), header=0)
+    dt_b = blocks.DataTransformBlock(callbacks=[_fill_missing])
+    dt_model = blocks.BlockAssembler.Sequential([csv_b, dt_b])
+    pdf = dt_model.block_data(dt_b)
+    assert pdf.shape == (2410, 8)
+    dt_model_json = dt_model.to_json(indent=2)
+    dt_model_1 = blocks.BlockAssembler.from_json(dt_model_json)
+    dt_model_1.block_data(dt_model_1.blocks[1])
+    pdf = dt_model_1.block_data(dt_b)
+    assert pdf.shape == (2410, 8)

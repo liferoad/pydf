@@ -39,6 +39,8 @@ class UUIDEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, uuid.UUID):
             return str(obj)
+        elif isinstance(obj, types.FunctionType):
+            return dict({obj.__name__: inspect.getsource(obj)})
         return json.JSONEncoder.default(self, obj)
 
 
@@ -109,6 +111,10 @@ class ReadCSVBlock(Block):
     def _set_fields(cls, values: dict) -> dict:
         values_1 = values.copy()
         path = values_1.pop("path")
+        values_1.pop("block_type", None)
+        values_1.pop("block_id", None)
+        values_1.pop("source_ids", None)
+        values_1.pop("target_ids", None)
         values["operation"] = read_csv(path, **values_1)
         return values
 
@@ -311,6 +317,8 @@ class BlockAssembler:
                 blocks.append(CrossJoinBlock(**block_dict))
             elif block_dict.get("block_type") == "CosSimilarity":
                 blocks.append(CosSimilarityBlock(**block_dict))
+            elif block_dict.get("block_type") == "ReadCSV":
+                blocks.append(ReadCSVBlock(**block_dict))
             elif block_dict.get("block_type") == "DataTransform":
                 blocks.append(DataTransformBlock(**block_dict))
             else:
