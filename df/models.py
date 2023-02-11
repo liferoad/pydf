@@ -1,5 +1,5 @@
 # standard libraries
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 
 # third party libraries
 from pydantic import BaseModel as _BaseModel
@@ -24,6 +24,8 @@ class Job(BaseModel, _DataflowJobMixin):
 
     name: str = Field(..., description="Dataflow job name")
     id: Optional[str] = Field(None, description="Dataflow job id")
+
+    _details: Optional[Dict] = Field(None, description="Job details in a dictionary")
 
 
 class DataPipeline(BaseModel, _DataPipelineMixin):

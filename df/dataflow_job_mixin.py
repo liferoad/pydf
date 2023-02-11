@@ -5,6 +5,19 @@ class _DataflowJobMixin:
     def raw_results(self):
         return self._api_results
 
+    @property
+    def details(self):
+        self._details = (
+            self._df._df_service.projects()
+            .jobs()
+            .get(
+                projectId=self._df.project_id,
+                jobId=self.id,
+            )
+            .execute()
+        )
+        return self._details
+
     def cancel(self) -> "Job":  # noqa F821
         """Cancel a Dataflow Job"""
         response = (
