@@ -1,8 +1,10 @@
 # standard libraries
+import subprocess as sp
 from typing import Dict, List, Union
 
 # third party libraries
 from google.oauth2 import service_account
+from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from pydantic import FilePath
 
@@ -14,7 +16,7 @@ from df import options as op
 class Dataflow:
     """Dataflow project level class"""
 
-    def __init__(self, project_id: str, location_id: str, service_account_file: FilePath) -> None:
+    def __init__(self, project_id: str, location_id: str, service_account_file: FilePath = None) -> None:
         """Initialize a Dataflow class with the service information
 
         Args:
@@ -22,9 +24,13 @@ class Dataflow:
             location_id (str): a Dataflow service region
             service_account_file (FilePath): a service account file location
         """
-        self._credentials = service_account.Credentials.from_service_account_file(
-            service_account_file, scopes=["https://www.googleapis.com/auth/cloud-platform"]
-        )
+        if not service_account_file:
+            token = sp.getoutput("gcloud auth print-access-token")
+            self._credentials = Credentials(token)
+        else:
+            self._credentials = service_account.Credentials.from_service_account_file(
+                service_account_file, scopes=["https://www.googleapis.com/auth/cloud-platform"]
+            )
         self._dp_service = build("datapipelines", "v1", credentials=self._credentials, cache_discovery=False)
         self._df_service = build("dataflow", "v1b3", credentials=self._credentials, cache_discovery=False)
         self.project_id = project_id
@@ -99,7 +105,7 @@ class Dataflow:
 
     def list_data_pipelines(self) -> List[dm.DataPipeline]:
         """List data pipelines under a project for a given location"""
-        res = self._dp_service.projects().locations().listPipelines(parent=self._parent).execute()
+        res = self._dp_service.projects().locations().pipelines().list(parent=self._parent).execute()
         pipelines = []
         for one_res in res["pipelines"]:
             one_p = dm.DataPipeline(
